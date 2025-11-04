@@ -1,0 +1,10 @@
+numpy>=1.24.0
+pandas>=2.0.0
+python-dateutil>=2.8.2
+pytz>=2023.3
+RPi.GPIO>=0.7.1
+adafruit-circuitpython-dht>=3.7.0
+adafruit-circuitpython-ads1x15>=2.2.0
+adafruit-blinka>=8.20.0
+adafruit-circuitpython-busdevice>=5.2.0
+opencv-python>=4.8.0

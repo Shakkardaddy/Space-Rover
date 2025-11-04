@@ -1,0 +1,9 @@
+{
+  "auto_study_enabled": true,
+  "study_interval": 30,
+  "default_speed": 50,
+  "ir_priority": true,
+  "log_to_file": true,
+  "camera_resolution": [320, 240],
+  "min_obstacle_area": 1500
+}
