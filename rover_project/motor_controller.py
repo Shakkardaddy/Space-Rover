@@ -32,7 +32,7 @@ class MotorController:
         self.init_motors()
         
         # Speed settings (0-100)
-        self.default_speed = 50
+        self.default_speed = 75
         self.current_speed = self.default_speed
         self.turn_speed_reduction = 0.6  # Reduce speed when turning
         
@@ -49,6 +49,10 @@ class MotorController:
             GPIO.setup(pins['en'], GPIO.OUT)
             self.pwm[side] = GPIO.PWM(pins['en'], self.pwm_frequency)
             self.pwm[side].start(0)
+            
+            # Initialize to stopped state
+            GPIO.output(pins['in1'], GPIO.LOW)
+            GPIO.output(pins['in2'], GPIO.LOW)
             
             print(f"✓ {side.capitalize()} motor initialized (EN: GPIO{pins['en']})")
     
@@ -79,11 +83,15 @@ class MotorController:
         GPIO.output(pins['in2'], GPIO.HIGH)
     
     def motor_stop(self, side: str):
-        """Stop motor"""
+        """Stop motor - FIXED: Set speed to 0 first, then stop direction pins"""
+        # Set PWM to 0 FIRST to stop motor
+        self.set_motor_speed(side, 0)
+        # Small delay to ensure PWM is applied
+        time.sleep(0.01)
+        # Then set direction pins LOW
         pins = self.motor_pins[side]
         GPIO.output(pins['in1'], GPIO.LOW)
         GPIO.output(pins['in2'], GPIO.LOW)
-        self.set_motor_speed(side, 0)
     
     # ==================== Movement Commands ====================
     
@@ -97,8 +105,14 @@ class MotorController:
         """
         speed = speed or self.current_speed
         
+        # Set direction first
         self.motor_forward('left')
         self.motor_forward('right')
+        
+        # Small delay to ensure direction is set
+        time.sleep(0.01)
+        
+        # Then apply speed
         self.set_motor_speed('left', speed)
         self.set_motor_speed('right', speed)
         
@@ -110,8 +124,14 @@ class MotorController:
         """Move rover backward"""
         speed = speed or self.current_speed
         
+        # Set direction first
         self.motor_backward('left')
         self.motor_backward('right')
+        
+        # Small delay to ensure direction is set
+        time.sleep(0.01)
+        
+        # Then apply speed
         self.set_motor_speed('left', speed)
         self.set_motor_speed('right', speed)
         
@@ -132,6 +152,10 @@ class MotorController:
         # Method 1: Slow down left side (gradual turn)
         self.motor_forward('left')
         self.motor_forward('right')
+        
+        # Small delay
+        time.sleep(0.01)
+        
         self.set_motor_speed('left', int(speed * 0.3))  # Left slower
         self.set_motor_speed('right', speed)
         
@@ -145,6 +169,10 @@ class MotorController:
         
         self.motor_forward('left')
         self.motor_forward('right')
+        
+        # Small delay
+        time.sleep(0.01)
+        
         self.set_motor_speed('left', speed)
         self.set_motor_speed('right', int(speed * 0.3))  # Right slower
         
@@ -160,6 +188,10 @@ class MotorController:
         
         self.motor_backward('left')
         self.motor_forward('right')
+        
+        # Small delay
+        time.sleep(0.01)
+        
         self.set_motor_speed('left', speed)
         self.set_motor_speed('right', speed)
         
@@ -175,6 +207,10 @@ class MotorController:
         
         self.motor_forward('left')
         self.motor_backward('right')
+        
+        # Small delay
+        time.sleep(0.01)
+        
         self.set_motor_speed('left', speed)
         self.set_motor_speed('right', speed)
         
@@ -321,6 +357,7 @@ class MotorController:
     def cleanup(self):
         """Stop motors and cleanup GPIO"""
         self.stop()
+        time.sleep(0.1)  # Give time for motors to stop
         for pwm in self.pwm.values():
             pwm.stop()
         GPIO.cleanup()
@@ -346,12 +383,40 @@ if __name__ == "__main__":
     
     # Initialize controller
     motors = MotorController(motor_config)
-    motors.set_speed(50)  # Set to 50% speed
     
     try:
         print("\n" + "="*60)
-        print("MOTOR TEST SEQUENCE")
+        print("SIMPLE MOTOR TEST - One motor at a time")
         print("="*60 + "\n")
+        
+        # Test left motor only first
+        print("Testing LEFT motor at 80% for 3 seconds...")
+        motors.motor_forward('left')
+        time.sleep(0.05)  # Ensure direction is set
+        motors.set_motor_speed('left', 80)
+        time.sleep(3)
+        motors.motor_stop('left')
+        
+        print("\nWaiting 2 seconds...")
+        time.sleep(2)
+        
+        # Test right motor only
+        print("Testing RIGHT motor at 80% for 3 seconds...")
+        motors.motor_forward('right')
+        time.sleep(0.05)  # Ensure direction is set
+        motors.set_motor_speed('right', 80)
+        time.sleep(3)
+        motors.motor_stop('right')
+        
+        print("\nWaiting 2 seconds...")
+        time.sleep(2)
+        
+        # If individual motors work, test full sequence
+        print("\n" + "="*60)
+        print("FULL MOTOR TEST SEQUENCE")
+        print("="*60 + "\n")
+        
+        motors.set_speed(75)  # Set to 75% speed
         
         # Test 1: Forward
         print("1. Moving forward...")
@@ -396,7 +461,7 @@ if __name__ == "__main__":
         
         for i, scenario in enumerate(scenarios, 1):
             print(f"\n  Scenario {i}: {scenario}")
-            action = motors.navigate_with_ir(scenario, speed=40)
+            action = motors.navigate_with_ir(scenario, speed=60)
             print(f"  Action: {action}")
             time.sleep(1.5)
             motors.stop()
@@ -406,5 +471,9 @@ if __name__ == "__main__":
         
     except KeyboardInterrupt:
         print("\n\nTest interrupted by user")
+    except Exception as e:
+        print(f"\nError occurred: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         motors.cleanup()
