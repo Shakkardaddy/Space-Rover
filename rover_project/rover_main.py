@@ -4,19 +4,11 @@ import board
 from datetime import datetime
 from typing import Dict, Optional
 
-# Import your real sensor, motor, and camera modules
 from sensor_manager import SensorManager
-# from motor_controller import MotorController
+from motor_controller import MotorController
 # from obstacle_detector import RoverMultiCameraDetector
 
 class RoverMainControl:
-    """
-    Main control system that integrates:
-    - IR sensors
-    - Motor control
-    - Environmental sensors (DHT11)
-    - Data logging
-    """
     def __init__(self):
         print("\n" + "="*70)
         print(" " * 20 + "SPACE ROVER INITIALIZATION")
@@ -38,19 +30,21 @@ class RoverMainControl:
         }
         self.sensors = SensorManager(sensor_config)
         
-        # Uncomment/init other modules as needed
-        # print("\n→ Initializing motors...")
-        # motor_config = {...}
-        # self.motors = MotorController(motor_config)
+        print("\n→ Initializing motors...")
+        motor_config = {
+            'left': {'in1': 5, 'in2': 6, 'en': 13},
+            'right': {'in1': 19, 'in2': 26, 'en': 12}
+        }
+        self.motors = MotorController(motor_config)
         
         # print("\n→ Initializing cameras...")
         # camera_config = {...}
         # self.camera_detector = RoverMultiCameraDetector(camera_config)
         
-        self.ir_priority_distance = 20  # cm, IR sensor trigger distance
-        self.study_interval = 30  # seconds between soil studies
+        self.ir_priority_distance = 20
+        self.study_interval = 30
         self.last_study_time = 0
-        self.movement_speed = 50  # Default speed (0-100)
+        self.movement_speed = 50
         
         self.position = {'x': 0.0, 'y': 0.0, 'heading': 0.0}
         self.distance_per_second = 0.15
@@ -77,7 +71,6 @@ class RoverMainControl:
         except FileNotFoundError:
             return default_config
 
-    # ==================== Position Tracking ====================
     def update_position(self, direction: str, duration: float):
         import math
         distance = self.distance_per_second * duration
@@ -103,7 +96,6 @@ class RoverMainControl:
             'heading': round(self.position['heading'], 1)
         }
 
-    # ==================== Data Logging ====================
     def log_data(self, sensor_data: Dict, action: str, position: Dict):
         log_entry = {
             'timestamp': datetime.now().isoformat(),
@@ -125,7 +117,6 @@ class RoverMainControl:
         except Exception as e:
             print(f"✗ Failed to save data: {e}")
 
-    # ==================== Study Mode ====================
     def should_study_location(self) -> bool:
         current_time = time.time()
         if self.config['auto_study_enabled']:
@@ -137,6 +128,9 @@ class RoverMainControl:
         print("\n" + "🔬"*35)
         print(" " * 20 + "STUDYING LOCATION")
         print("🔬"*35)
+        
+        # Stop motors
+        self.motors.stop()
         
         position = self.get_position()
         print(f"\n📍 Position: ({position['x']}, {position['y']}) | Heading: {position['heading']}°")
@@ -167,20 +161,12 @@ class RoverMainControl:
         print("🔬"*35 + "\n")
         time.sleep(2)
 
-    # ==================== Main Control Loop ====================
     def make_navigation_decision(self) -> Dict:
         ir_status = self.sensors.read_all_ir_sensors()
-        # camera_decision = self.camera_detector.get_best_direction()
         camera_decision = {'recommended_direction': 'front', 'should_move': True}
-
         if ir_status.get('front', False):
-            return {'action': 'stop',
-                    'reason': 'Front IR sensor triggered - obstacle too close!',
-                    'direction': None,
-                    'duration': 0}
-
+            return {'action': 'stop', 'reason': 'Front IR sensor triggered - obstacle too close!', 'direction': None, 'duration': 0}
         recommended_dir = camera_decision.get('recommended_direction', 'stop')
-
         if recommended_dir == 'front' and not ir_status.get('front', False):
             return {'action': 'forward', 'reason': 'Path clear ahead', 'direction': 'forward', 'duration': 2.0}
         elif recommended_dir == 'left' and not ir_status.get('left', False):
@@ -196,22 +182,22 @@ class RoverMainControl:
         action = decision['action']
         duration = decision.get('duration', 0)
         print(f"🚀 {action.upper()}: {decision['reason']}")
-        # Uncomment for motors
-        # if action == 'forward':
-        #     self.motors.move_forward(speed=self.movement_speed, duration=duration)
-        # elif action == 'backward':
-        #     self.motors.move_backward(speed=self.movement_speed, duration=duration)
-        # elif action == 'turn_left':
-        #     self.motors.turn_left(duration=duration)
-        # elif action == 'turn_right':
-        #     self.motors.turn_right(duration=duration)
-        # elif action == 'spin_left':
-        #     self.motors.spin_left(duration=duration)
-        # elif action == 'spin_right':
-        #     self.motors.spin_right(duration=duration)
-        # elif action == 'stop':
-        #     self.motors.stop()
-
+        # *** MOTOR ACTIONS ***
+        if action == 'forward':
+            self.motors.move_forward(speed=self.movement_speed, duration=duration)
+        elif action == 'backward':
+            self.motors.move_backward(speed=self.movement_speed, duration=duration)
+        elif action == 'turn_left':
+            self.motors.turn_left(duration=duration)
+        elif action == 'turn_right':
+            self.motors.turn_right(duration=duration)
+        elif action == 'spin_left':
+            self.motors.spin_left(duration=duration)
+        elif action == 'spin_right':
+            self.motors.spin_right(duration=duration)
+        elif action == 'stop':
+            self.motors.stop()
+        # *** UPDATE POSITION AND LOGGING ***
         if decision['direction']:
             self.update_position(decision['direction'], duration)
         position = self.get_position()
@@ -244,14 +230,14 @@ class RoverMainControl:
             self.stop()
 
     def stop(self):
+        print("→ Stopping motors...")
+        self.motors.stop()
         print("→ Saving final data...")
         self.save_log_to_file()
         print("\n✓ Rover shutdown complete")
         print(f"Total data points collected: {len(self.data_log)}")
         print(f"Final position: {self.get_position()}")
 
-
-# ==================== Standalone Execution ====================
 if __name__ == "__main__":
     print("""
     ╔════════════════════════════════════════════════════════════════════╗
@@ -259,6 +245,7 @@ if __name__ == "__main__":
     ║   ✓ IR sensor integration                                        ║
     ║   ✓ Autonomous navigation                                        ║
     ║   ✓ Environmental sensing (temp, humidity)                       ║
+    ║   ✓ Motor control                                                ║
     ║   ✓ Position tracking                                            ║
     ║   ✓ Data logging                                                 ║
     ╚════════════════════════════════════════════════════════════════════╝
